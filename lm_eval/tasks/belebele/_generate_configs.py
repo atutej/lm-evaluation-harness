@@ -8,7 +8,7 @@ import requests
 
 from tqdm import tqdm
 
-from lm_eval.logger import eval_logger
+#from lm_eval.logger import eval_logger
 
 API_URL = "https://datasets-server.huggingface.co/splits?dataset=facebook/belebele"
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         }
 
         file_save_path = args.save_prefix_path + f"_{lang}.yaml"
-        eval_logger.info(f"Saving yaml for subset {lang} to {file_save_path}")
+        #eval_logger.info(f"Saving yaml for subset {lang} to {file_save_path}")
         with open(file_save_path, "w") as yaml_file:
             yaml.dump(
                 yaml_dict,

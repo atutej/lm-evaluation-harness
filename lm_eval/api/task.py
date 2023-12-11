@@ -238,13 +238,22 @@ class Task(abc.ABC):
             - `datasets.DownloadMode.FORCE_REDOWNLOAD`
                 Fresh download and fresh dataset.
         """
-        self.dataset = datasets.load_dataset(
+        if self.DATASET_PATH=="facebook/belebele":
+            self.dataset = datasets.load_dataset(
             path=self.DATASET_PATH,
-            name=self.DATASET_NAME,
-            data_dir=data_dir,
-            cache_dir=cache_dir,
-            download_mode=download_mode,
-        )
+            name="default",
+            split=self.DATASET_NAME,
+            **dataset_kwargs if dataset_kwargs is not None else {},
+            )
+
+        else:
+            self.dataset = datasets.load_dataset(
+                path=self.DATASET_PATH,
+                name=self.DATASET_NAME,
+                **dataset_kwargs if dataset_kwargs is not None else {},
+            )
+        if self.DATASET_PATH=="ai4bharat/IndicSentiment":
+            self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
 
     @property
     def config(self):
@@ -727,11 +736,23 @@ class ConfigurableTask(Task):
                     )
 
     def download(self, dataset_kwargs=None) -> None:
-        self.dataset = datasets.load_dataset(
+        if self.DATASET_PATH=="facebook/belebele":
+            self.dataset = datasets.load_dataset(
             path=self.DATASET_PATH,
-            name=self.DATASET_NAME,
+            name="default",
+            split=self.DATASET_NAME,
             **dataset_kwargs if dataset_kwargs is not None else {},
-        )
+            )
+
+        else:
+            self.dataset = datasets.load_dataset(
+                path=self.DATASET_PATH,
+                name=self.DATASET_NAME,
+                **dataset_kwargs if dataset_kwargs is not None else {},
+            )
+        if self.DATASET_PATH=="ai4bharat/IndicSentiment":
+            self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
+            
 
     def has_training_docs(self) -> bool:
         if self.config.training_split is not None:
@@ -740,7 +761,11 @@ class ConfigurableTask(Task):
             return False
 
     def has_validation_docs(self) -> bool:
+        #print(self.config.validation_split)
+        #exit()
         if self.config.validation_split is not None:
+            #print("Here")
+            #exit()
             return True
         else:
             return False

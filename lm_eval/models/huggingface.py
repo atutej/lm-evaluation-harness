@@ -99,6 +99,7 @@ class HFLM(LM):
     ) -> None:
         super().__init__()
 
+
         assert isinstance(device, str)
         assert isinstance(pretrained, str)
         assert isinstance(batch_size, (int, str))
@@ -434,8 +435,10 @@ class HFLM(LM):
             elif self.AUTO_MODEL_CLASS == transformers.AutoModelForSeq2SeqLM:
                 add_special_tokens = True
 
+        #print(string)
         encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
-
+        #print(len(encoding))
+        #print("------")
         # left-truncate the encoded context to be at most `left_truncate_len` tokens long
         if left_truncate_len:
             encoding = encoding[-left_truncate_len:]
@@ -458,6 +461,8 @@ class HFLM(LM):
         elif self.AUTO_MODEL_CLASS == transformers.AutoModelForSeq2SeqLM:
             add_special_tokens = True
 
+        #print(strings)
+        #print("-----")
         encoding = self.tokenizer(
             strings,
             truncation=truncation,
