@@ -1,6 +1,6 @@
 import argparse
 from typing import Dict, List
-
+import numpy as np
 import yaml
 
 
@@ -29,8 +29,20 @@ LANGUAGES = {
             "positive": "Positive",
             "negative": "Negative",
         },
+    "ta": {
+            "positive": "Positive",
+            "negative": "Negative",
+        },
 }
 
+def doc_to_target(doc):
+    label = doc["LABEL"]
+    labels = ["Negative", "Positive"]
+    #print(label)
+    if label is None:
+        return labels[np.random.randint(2)]
+    else:
+        return label
 
 def gen_lang_yamls(output_dir: str, overwrite: bool) -> None:
     """
@@ -43,8 +55,10 @@ def gen_lang_yamls(output_dir: str, overwrite: bool) -> None:
     for lang in LANGUAGES.keys():
         file_name = f"indicsentiment_{lang}.yaml"
         try:
-            POSITIVE_LABEL = LANGUAGES[lang]["positive"]
-            NEGATIVE_LABEL = LANGUAGES[lang]["negative"]
+            #POSITIVE_LABEL = LANGUAGES[lang]["positive"]
+            POSITIVE_LABEL = "Positive"
+            NEGATIVE_LABEL = "Negative"
+            #NEGATIVE_LABEL = LANGUAGES[lang]["negative"]
             with open(
                 f"{output_dir}/{file_name}", "w" if overwrite else "x", encoding="utf8"
             ) as f:
@@ -55,7 +69,7 @@ def gen_lang_yamls(output_dir: str, overwrite: bool) -> None:
                         "dataset_name": "translation-" + lang,
                         "task": f"indicsentiment_{lang}",
                         "doc_to_text": base_prompt,
-                        "doc_to_target": "LABEL",
+                        #"doc_to_target": "LABEL",
                         "doc_to_choice": "{{[\"Negative\", \"Positive\"]}}",
                     },
                     f,

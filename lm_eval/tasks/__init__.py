@@ -188,12 +188,12 @@ def initialize_tasks(verbosity="INFO"):
 
 
 def get_task(task_name, config):
-    try:
-        return TASK_REGISTRY[task_name](config=config)
-    except KeyError:
-        eval_logger.info("Available tasks:")
-        eval_logger.info(list(TASK_REGISTRY) + list(GROUP_REGISTRY))
-        raise KeyError(f"Missing task {task_name}")
+    #try:
+    return TASK_REGISTRY[task_name](config=config)
+    #except KeyError:
+    #    eval_logger.info("Available tasks:")
+    #    eval_logger.info(list(TASK_REGISTRY) + list(GROUP_REGISTRY))
+    #    raise KeyError(f"Missing task {task_name}")
 
 
 def get_task_name_from_object(task_object):

@@ -250,10 +250,18 @@ class Task(abc.ABC):
             self.dataset = datasets.load_dataset(
                 path=self.DATASET_PATH,
                 name=self.DATASET_NAME,
+                use_auth_token=True,
                 **dataset_kwargs if dataset_kwargs is not None else {},
             )
         if self.DATASET_PATH=="ai4bharat/IndicSentiment":
             self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
+            if self.DATASET_NAME == "translation-en":
+                self.dataset = self.dataset.rename_column("ENGLISH REVIEW", "INDIC_REVIEW")
+
+        
+        if self.DATASET_PATH=="xcsr":
+            self.dataset = self.dataset["validation"].train_test_split(test_size=0.7)
+        
 
     @property
     def config(self):
@@ -745,14 +753,22 @@ class ConfigurableTask(Task):
             )
 
         else:
+            #print("HEREEEEE")
             self.dataset = datasets.load_dataset(
                 path=self.DATASET_PATH,
                 name=self.DATASET_NAME,
+                use_auth_token=True,
                 **dataset_kwargs if dataset_kwargs is not None else {},
             )
+            #print("HEREEEEE2")
         if self.DATASET_PATH=="ai4bharat/IndicSentiment":
             self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
-            
+
+        if self.DATASET_PATH=="xcsr":
+            self.dataset = self.dataset["validation"].train_test_split(test_size=0.7)        
+
+        #print(len(self.dataset['validation']))
+        #exit()
 
     def has_training_docs(self) -> bool:
         if self.config.training_split is not None:

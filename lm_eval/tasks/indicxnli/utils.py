@@ -15,8 +15,25 @@ LANGUAGES = {
         "NEUTRAL_LABEL": "ಆದ್ದರಿಂದ",
         "CONTRADICTION_LABEL": "ಇಲ್ಲ",
     },
+    "hi": {  # English
+        "QUESTION_WORD": "सही",
+        "ENTAILMENT_LABEL": "हाँ",
+        "NEUTRAL_LABEL": "इसलिए",
+        "CONTRADICTION_LABEL": "नहीं",
+    },
+    "ur": {  # English
+        "QUESTION_WORD": "درست",
+        "ENTAILMENT_LABEL": "جی ہاں",
+        "NEUTRAL_LABEL": "تو",
+        "CONTRADICTION_LABEL": "نہیں",
+    },
+    "ta": {  # English
+        "QUESTION_WORD": "சரி",
+        "ENTAILMENT_LABEL": "ஆம்",
+        "NEUTRAL_LABEL": "அதனால்",
+        "CONTRADICTION_LABEL": "இல்லை",
+    },
 }
-
 
 def gen_lang_yamls(output_dir: str, overwrite: bool) -> None:
     """

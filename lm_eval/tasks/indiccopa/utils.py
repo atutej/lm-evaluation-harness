@@ -22,3 +22,27 @@ doc_to_text_hi = partial(
         "effect": "इसलिए",
     },
 )
+
+doc_to_text_ta = partial(
+    doc_to_text,
+    connector={
+        "cause": "ஏனெனில்",
+        "effect": "அதனால்",
+    },
+)
+
+doc_to_text_te = partial(
+    doc_to_text,
+    connector={
+        "cause": "ఎందుకంటే",
+        "effect": "కాబట్టి",
+    },
+)
+
+doc_to_text_ur = partial(
+    doc_to_text,
+    connector={
+        "cause": "کیونکہ",
+        "effect": "تو",
+    },
+)

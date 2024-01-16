@@ -46,7 +46,17 @@ def f1_score(items):
     unzipped_list = list(zip(*items))
     golds = unzipped_list[0]
     preds = unzipped_list[1]
-    fscore = sklearn.metrics.f1_score(golds, preds)
+    fscore = sklearn.metrics.f1_score(golds, preds, average="macro")
+
+    return np.max(fscore)
+
+
+@register_aggregation("f1_macro")
+def f1_score(items):
+    unzipped_list = list(zip(*items))
+    golds = unzipped_list[0]
+    preds = unzipped_list[1]
+    fscore = sklearn.metrics.f1_score(golds, preds, average="macro")
 
     return np.max(fscore)
 
@@ -222,9 +232,19 @@ def mcc_fn(items):  # This is a passthrough function
     output_type="multiple_choice",
     aggregation="f1",
 )
+
 def f1_fn(items):  # This is a passthrough function
     return items
 
+@register_metric(
+    metric="f1_macro",
+    higher_is_better=True,
+    output_type="multiple_choice",
+    aggregation="f1_macro",
+)
+
+def f1_macro_fn(items):  # This is a passthrough function
+    return items
 
 @register_metric(
     metric="bleu",

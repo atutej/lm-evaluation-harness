@@ -207,6 +207,7 @@ class HFLM(LM):
                 load_in_8bit=load_in_8bit,
                 **model_kwargs,
             )
+            
         else:
             try:
                 from auto_gptq import AutoGPTQForCausalLM
