@@ -12,7 +12,7 @@ doc_to_text: null
 doc_to_target: label
 doc_to_choice: null
 metric_list:
-  - metric: acc
+  - metric: acc_norm
     aggregation: mean
     higher_is_better: true
 metadata:

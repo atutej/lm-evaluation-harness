@@ -249,15 +249,18 @@ class Task(abc.ABC):
         else:
             self.dataset = datasets.load_dataset(
                 path=self.DATASET_PATH,
-                name=self.DATASET_NAME,
+                name=self.DATASET_NAME if self.DATASET_NAME!="translation-en" else "translation-hi",
                 use_auth_token=True,
                 **dataset_kwargs if dataset_kwargs is not None else {},
             )
         if self.DATASET_PATH=="ai4bharat/IndicSentiment":
-            self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
-            if self.DATASET_NAME == "translation-en":
+            if self._config.task == "indicsentiment_en":
                 self.dataset = self.dataset.rename_column("ENGLISH REVIEW", "INDIC_REVIEW")
-
+            #    print("HEREEEEEE")
+            else:
+                self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
+            #self.dataset = self.dataset.rename_column("ENGLISH REVIEW", "INDIC_REVIEW")
+            
         
         if self.DATASET_PATH=="xcsr":
             self.dataset = self.dataset["validation"].train_test_split(test_size=0.7)
@@ -756,14 +759,21 @@ class ConfigurableTask(Task):
             #print("HEREEEEE")
             self.dataset = datasets.load_dataset(
                 path=self.DATASET_PATH,
-                name=self.DATASET_NAME,
+                name=self.DATASET_NAME if self.DATASET_NAME!="translation-en" else "translation-hi",
                 use_auth_token=True,
                 **dataset_kwargs if dataset_kwargs is not None else {},
             )
             #print("HEREEEEE2")
         if self.DATASET_PATH=="ai4bharat/IndicSentiment":
-            self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
+            if self._config.task == "indicsentiment_en":
+                self.dataset = self.dataset.rename_column("ENGLISH REVIEW", "INDIC_REVIEW")
+            #    print("HEREEEEEE")
+            else:
+                self.dataset = self.dataset.rename_column("INDIC REVIEW", "INDIC_REVIEW")
+            #self.dataset = self.dataset.rename_column("ENGLISH REVIEW", "INDIC_REVIEW")
 
+            
+            
         if self.DATASET_PATH=="xcsr":
             self.dataset = self.dataset["validation"].train_test_split(test_size=0.7)        
 

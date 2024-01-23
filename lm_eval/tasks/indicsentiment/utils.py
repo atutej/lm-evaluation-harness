@@ -40,9 +40,9 @@ def doc_to_target(doc):
     labels = ["Negative", "Positive"]
     #print(label)
     if label is None:
-        return labels[np.random.randint(2)]
+        return np.random.randint(2)
     else:
-        return label
+        return labels.index(label)
 
 def gen_lang_yamls(output_dir: str, overwrite: bool) -> None:
     """

@@ -11,7 +11,7 @@ doc_to_choice: "{{[sentence_quiz1, sentence_quiz2]}}"
 should_decontaminate: true
 doc_to_decontamination_query: "{{[input_sentence_1, input_sentence_2, input_sentence_3, input_sentence_4]|join(' ')}}"
 metric_list:
-  - metric: acc
+  - metric: acc_norm
     aggregation: mean
     higher_is_better: true
 metadata:
