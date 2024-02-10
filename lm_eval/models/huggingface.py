@@ -228,6 +228,17 @@ class HFLM(LM):
                 **model_kwargs,
             )
 
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+            pretrained if tokenizer is None else tokenizer,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+            use_fast=use_fast_tokenizer,
+        )
+
+        if self.tokenizer.vocab_size > self._config.vocab_size:
+            print("Resizing Embeddings before Loading...")
+            self._model.resize_token_embeddings(self.tokenizer.vocab_size)
+
         if peft:
             if load_in_4bit:
                 assert PEFT_VERSION >= "0.4.0", "load_in_4bit requires peft >= 0.4.0"
@@ -246,13 +257,6 @@ class HFLM(LM):
                 eval_logger.info(
                     "Failed to place model onto specified device. This may be because the model is quantized via `bitsandbytes`. If the desired GPU is being used, this message is safe to ignore."
                 )
-
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-            pretrained if tokenizer is None else tokenizer,
-            revision=revision,
-            trust_remote_code=trust_remote_code,
-            use_fast=use_fast_tokenizer,
-        )
 
         self.truncation = truncation
 
