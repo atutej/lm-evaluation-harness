@@ -51,8 +51,7 @@ def preprocess_consume_orig_spit_new(
     # Tokenize conversations
     new_input_ids = tokenizer(
         sources,
-        max_length=tokenizer.model_max_length,
-        truncation=True,
+        truncation=False,
         add_special_tokens=add_special_tokens
     ).input_ids
 
@@ -280,7 +279,7 @@ class HFLM(LM):
         self.unequal_tokenizers=False
         if tokenizer is not None:
             tokenizer = tokenizer.translate(str.maketrans('', '','[]'))
-            all_tokenizers = tokenizer.split("<sep>")
+            all_tokenizers = tokenizer.split("AsepA")
             tokenizer1 = all_tokenizers[0]
             self.tokenizer = transformers.AutoTokenizer.from_pretrained(
                 tokenizer1,
