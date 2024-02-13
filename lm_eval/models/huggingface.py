@@ -61,7 +61,7 @@ def preprocess_consume_orig_spit_new(
     input_ids = [[] for _ in range(len(new_input_ids))]
     targets = [[] for _ in range(len(new_input_ids))]
     for i, x in enumerate(new_input_ids):
-        for j, new_tok in enumerate(x[1:]):
+        for j, new_tok in enumerate(x):
             orig_tokens = new_to_orig_token_map[new_tok]
             input_ids[i].extend(orig_tokens)
             
@@ -69,13 +69,13 @@ def preprocess_consume_orig_spit_new(
             new_target = [new_tok, *[IGNORE_TOKEN_ID]*(len(orig_tokens)-1)]
             targets[i].extend(new_target)
 
-        input_ids[i] = input_ids[i][:tokenizer.model_max_length]
-        targets[i] = targets[i][:tokenizer.model_max_length]
+        #input_ids[i] = input_ids[i][:tokenizer.model_max_length]
+        #targets[i] = targets[i][:tokenizer.model_max_length]
         #if len(input_ids[i]) < tokenizer.model_max_length:
         #    input_ids[i].extend([tokenizer.pad_token_id]*(tokenizer.model_max_length-len(input_ids[i])))
         #    targets[i].extend([IGNORE_TOKEN_ID]*(tokenizer.model_max_length-len(targets[i])))
     
-    return targets
+    return input_ids, targets
 
 def _get_accelerate_args(
     device_map_option: Optional[str] = "auto",
@@ -503,7 +503,7 @@ class HFLM(LM):
         return batch_size
 
     def tok_encode(
-        self, string: str, left_truncate_len=None, add_special_tokens=None, unequal_tokenizers=False
+        self, string: str, left_truncate_len=None, add_special_tokens=None, unequal_tokenizers=False, get_target_only=True
     ) -> List[int]:
         """ """
         if add_special_tokens is None:
@@ -515,7 +515,16 @@ class HFLM(LM):
         #print(string)
         if unequal_tokenizers:
             #encoding = self.target_tokenizer.encode(string, add_special_tokens=add_special_tokens)
-            encoding = preprocess_consume_orig_spit_new([string], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=add_special_tokens)[0]
+            if get_target_only:
+                encoding = preprocess_consume_orig_spit_new([string], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=add_special_tokens)[1][0]
+            else:
+                encoding = preprocess_consume_orig_spit_new([string], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=add_special_tokens)
+                target_enc = encoding[1][0]
+                encoding = encoding[0][0]
+                if left_truncate_len:
+                    encoding = encoding[-left_truncate_len:]
+                    target_enc = target_enc[-left_truncate_len:]
+                return encoding, target_enc
         else:
             encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
         #print(len(encoding))
@@ -636,19 +645,34 @@ class HFLM(LM):
             continuation = context[-n_spaces:] + continuation
             context = context[:-n_spaces]
 
-        whole_enc = self.tok_encode(context + continuation, add_special_tokens=False)
-        context_enc = self.tok_encode(context, add_special_tokens=False)
-
         # whole_enc = self.tok_encode(context + continuation)
         # context_enc = self.tok_encode(context, add_special_tokens=False)
-
+        
         if self.unequal_tokenizers:
-            continuation_target_enc = self.tok_encode(continuation, add_special_tokens=False, unequal_tokenizers=True)
+            #print("*******")
+            #print("continuation:", continuation)
+            #print("context:", context)
+            enc = preprocess_consume_orig_spit_new([context + continuation], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)
+            context_enc = preprocess_consume_orig_spit_new([context], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)[0][0]
+            whole_enc = enc[1][0]
+            #print(len(enc[0][0]))
+            #print(len(enc[1][0]))
+            context_enc_len = len(context_enc)
+            #print(context_enc_len)
+            
+            continuation_target_enc = whole_enc[context_enc_len:]
+            continuation_enc = enc[0][0][context_enc_len:]
+            #print(continuation_target_enc)
+            #print(continuation_enc)
+            #print("-----")
+        
         else:
+            whole_enc = self.tok_encode(context + continuation, add_special_tokens=False)
+            context_enc = self.tok_encode(context, add_special_tokens=False)
+            context_enc_len = len(context_enc)
+            continuation_enc = whole_enc[context_enc_len:]
             continuation_target_enc = continuation_enc
 
-        context_enc_len = len(context_enc)
-        continuation_enc = whole_enc[context_enc_len:]
         return context_enc, continuation_enc, continuation_target_enc
 
     def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
@@ -656,9 +680,11 @@ class HFLM(LM):
         for context, continuation in [req.args for req in requests]:
             if context == "":
                 # end of text as context
-                context_enc, continuation_enc, continuation_target_enc = [self.eot_token_id], self.tok_encode(continuation), self.tok_encode(continuation, unequal_tokenizers=self.unequal_tokenizers)
+                #print(xyz)
+                context_enc = [self.eot_token_id]
+                continuation_enc, continuation_target_enc = self.tok_encode(continuation, unequal_tokenizers=self.unequal_tokenizers, get_target_only=False)
             else:
-                context_enc, continuation_enc = self._encode_pair(context, continuation)
+                context_enc, continuation_enc, continuation_target_enc = self._encode_pair(context, continuation)
 
             new_reqs.append(((context, continuation), context_enc, continuation_enc, continuation_target_enc))
 
