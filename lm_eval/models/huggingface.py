@@ -280,7 +280,7 @@ class HFLM(LM):
         self.unequal_tokenizers=False
         if tokenizer is not None:
             tokenizer = tokenizer.translate(str.maketrans('', '','[]'))
-            all_tokenizers = tokenizer.split("AsepA")
+            all_tokenizers = tokenizer.split("<sep>")
             tokenizer1 = all_tokenizers[0]
             self.tokenizer = transformers.AutoTokenizer.from_pretrained(
                 tokenizer1,
