@@ -38,7 +38,6 @@ LANGUAGES = {
 def doc_to_target(doc):
     label = doc["LABEL"]
     labels = ["Negative", "Positive"]
-    #print(label)
     if label is None:
         return np.random.randint(2)
     else:

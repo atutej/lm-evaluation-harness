@@ -23,10 +23,59 @@ from lm_eval.api.registry import register_model
 from lm_eval.utils import MultiTokenEOSCriteria, stop_sequences_criteria
 
 from accelerate import Accelerator, find_executable_batch_size, DistributedType
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, Dict
 
 eval_logger = utils.eval_logger
 
+from transformers.trainer_pt_utils import LabelSmoother
+
+IGNORE_TOKEN_ID = 1
+
+def build_new_to_orig_token_map(tokenizer: transformers.PreTrainedTokenizer, orig_tokenizer: transformers.PreTrainedTokenizer):
+    new_to_orig_token_map = {}
+    for new_tok, ind in tokenizer.get_vocab().items():
+        if ind >= orig_tokenizer.vocab_size:
+            # "runner" is a dummy word which is later removed from the tokenization, doing this to avoid some weird tokenization artificats, need to look more into this
+            new_to_orig_token_map[ind] = orig_tokenizer.encode("runner"+new_tok, add_special_tokens=False)[1:]
+        else:
+            new_to_orig_token_map[ind] = [ind]
+    return new_to_orig_token_map
+
+def preprocess_consume_orig_spit_new(
+    sources,
+    tokenizer: transformers.PreTrainedTokenizer,
+    new_to_orig_token_map: Dict,
+    add_special_tokens
+) -> Dict:
+    
+    # Tokenize conversations
+    new_input_ids = tokenizer(
+        sources,
+        max_length=tokenizer.model_max_length,
+        truncation=True,
+        add_special_tokens=add_special_tokens
+    ).input_ids
+
+    WAIT_TOKEN_ID = tokenizer.sep_token_id
+
+    input_ids = [[] for _ in range(len(new_input_ids))]
+    targets = [[] for _ in range(len(new_input_ids))]
+    for i, x in enumerate(new_input_ids):
+        for j, new_tok in enumerate(x[1:]):
+            orig_tokens = new_to_orig_token_map[new_tok]
+            input_ids[i].extend(orig_tokens)
+            
+            # new_target = [new_tok, *orig_tokens[1:]] if len(orig_tokens) > 1 else [new_tok]
+            new_target = [new_tok, *[IGNORE_TOKEN_ID]*(len(orig_tokens)-1)]
+            targets[i].extend(new_target)
+
+        input_ids[i] = input_ids[i][:tokenizer.model_max_length]
+        targets[i] = targets[i][:tokenizer.model_max_length]
+        #if len(input_ids[i]) < tokenizer.model_max_length:
+        #    input_ids[i].extend([tokenizer.pad_token_id]*(tokenizer.model_max_length-len(input_ids[i])))
+        #    targets[i].extend([IGNORE_TOKEN_ID]*(tokenizer.model_max_length-len(targets[i])))
+    
+    return targets
 
 def _get_accelerate_args(
     device_map_option: Optional[str] = "auto",
@@ -228,12 +277,35 @@ class HFLM(LM):
                 **model_kwargs,
             )
 
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-            pretrained if tokenizer is None else tokenizer,
-            revision=revision,
-            trust_remote_code=trust_remote_code,
-            use_fast=use_fast_tokenizer,
-        )
+        self.unequal_tokenizers=False
+        if tokenizer is not None:
+            tokenizer = tokenizer.translate(str.maketrans('', '','[]'))
+            all_tokenizers = tokenizer.split("AsepA")
+            tokenizer1 = all_tokenizers[0]
+            self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+                tokenizer1,
+                revision=revision,
+                trust_remote_code=trust_remote_code,
+                use_fast=use_fast_tokenizer,
+            )
+            assert len(all_tokenizers)<=2, "Can only have two tokenizers, Original and Target respectively"
+            if len(all_tokenizers)==2:
+                tokenizer2 = all_tokenizers[1]
+                self.target_tokenizer = transformers.AutoTokenizer.from_pretrained(
+                    tokenizer2,
+                    revision=revision,
+                    trust_remote_code=trust_remote_code,
+                    use_fast=use_fast_tokenizer,
+                )
+                self.unequal_tokenizers=True
+                self.new_to_orig_token_map = build_new_to_orig_token_map(self.target_tokenizer, self.tokenizer)
+        else:
+            self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+                pretrained,
+                revision=revision,
+                trust_remote_code=trust_remote_code,
+                use_fast=use_fast_tokenizer,
+            )
 
         if self.tokenizer.vocab_size > self._config.vocab_size:
             print("Resizing Embeddings before Loading...")
@@ -382,7 +454,7 @@ class HFLM(LM):
 
     def _detect_batch_size(self, requests=None, pos: int = 0):
         if requests:
-            _, context_enc, continuation_enc = requests[pos]
+            _, context_enc, continuation_enc, continuation_target_enc = requests[pos]
             max_length = len(
                 (context_enc + continuation_enc)[-(self.max_length + 1) :][:-1]
             )
@@ -431,7 +503,7 @@ class HFLM(LM):
         return batch_size
 
     def tok_encode(
-        self, string: str, left_truncate_len=None, add_special_tokens=None
+        self, string: str, left_truncate_len=None, add_special_tokens=None, unequal_tokenizers=False
     ) -> List[int]:
         """ """
         if add_special_tokens is None:
@@ -441,7 +513,11 @@ class HFLM(LM):
                 add_special_tokens = True
 
         #print(string)
-        encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
+        if unequal_tokenizers:
+            #encoding = self.target_tokenizer.encode(string, add_special_tokens=add_special_tokens)
+            encoding = preprocess_consume_orig_spit_new([string], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=add_special_tokens)[0]
+        else:
+            encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
         #print(len(encoding))
         #print("------")
         # left-truncate the encoded context to be at most `left_truncate_len` tokens long
@@ -484,7 +560,7 @@ class HFLM(LM):
 
         return encoding["input_ids"], encoding["attention_mask"]
 
-    def tok_decode(self, tokens):
+    def tok_decode(self, tokens, unequal):
         if self.AUTO_MODEL_CLASS == transformers.AutoModelForCausalLM:
             return self.tokenizer.decode(tokens)
         elif self.AUTO_MODEL_CLASS == transformers.AutoModelForSeq2SeqLM:
@@ -565,22 +641,26 @@ class HFLM(LM):
 
         # whole_enc = self.tok_encode(context + continuation)
         # context_enc = self.tok_encode(context, add_special_tokens=False)
+
+        if self.unequal_tokenizers:
+            continuation_target_enc = self.tok_encode(continuation, add_special_tokens=False, unequal_tokenizers=True)
+        else:
+            continuation_target_enc = continuation_enc
+
         context_enc_len = len(context_enc)
         continuation_enc = whole_enc[context_enc_len:]
-        return context_enc, continuation_enc
+        return context_enc, continuation_enc, continuation_target_enc
 
     def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
         new_reqs = []
         for context, continuation in [req.args for req in requests]:
             if context == "":
                 # end of text as context
-                context_enc, continuation_enc = [self.eot_token_id], self.tok_encode(
-                    continuation
-                )
+                context_enc, continuation_enc, continuation_target_enc = [self.eot_token_id], self.tok_encode(continuation), self.tok_encode(continuation, unequal_tokenizers=self.unequal_tokenizers)
             else:
                 context_enc, continuation_enc = self._encode_pair(context, continuation)
 
-            new_reqs.append(((context, continuation), context_enc, continuation_enc))
+            new_reqs.append(((context, continuation), context_enc, continuation_enc, continuation_target_enc))
 
         return self._loglikelihood_tokens(new_reqs)
 
@@ -659,7 +739,7 @@ class HFLM(LM):
 
     def _loglikelihood_tokens(
         self,
-        requests: List[Tuple[Tuple[str, str], List[int], List[int]]],
+        requests: List[Tuple[Tuple[str, str], List[int], List[int], List[int]]],
         disable_tqdm: bool = False,
         override_bs: int = None,
     ) -> List[Tuple[float, bool]]:
@@ -701,6 +781,7 @@ class HFLM(LM):
         for chunk in chunks:
             inps = []
             cont_toks_list = []
+            cont_target_toks_list = []
             inplens = []
 
             conts = []
@@ -712,11 +793,13 @@ class HFLM(LM):
             # tensors, then we pack them together into a batch, call the model, and then pick it all apart
             # again because vectorizing is annoying
 
-            for _, context_enc, continuation_enc in chunk:
+            for _, context_enc, continuation_enc, continuation_target_enc in chunk:
                 # sanity check
                 assert len(context_enc) > 0
                 assert len(continuation_enc) > 0
                 assert len(continuation_enc) <= self.max_length
+                assert len(continuation_target_enc) > 0
+                assert len(continuation_target_enc) <= self.max_length
 
                 # how this all works (illustrated on a causal decoder-only setup):
                 #          CTX      CONT
@@ -769,6 +852,7 @@ class HFLM(LM):
 
                 inps.append(inp)  # [1, inp_length]
                 cont_toks_list.append(continuation_enc)
+                cont_target_toks_list.append(continuation_target_enc)
                 inplens.append(inplen)
 
             # create encoder attn mask and batched conts, if seq2seq
@@ -797,8 +881,8 @@ class HFLM(LM):
                 self._model_call(batched_inps, **call_kwargs), dim=-1
             )  # [batch, padding_length (inp or cont), vocab]
 
-            for (cache_key, _, _), logits, inplen, cont_toks in zip(
-                chunk, multi_logits, inplens, cont_toks_list
+            for (cache_key, _, _, _), logits, inplen, cont_toks, cont_target_toks in zip(
+                chunk, multi_logits, inplens, cont_toks_list, cont_target_toks_list
             ):
                 # Slice to original seq length
                 contlen = len(cont_toks)
@@ -816,21 +900,40 @@ class HFLM(LM):
 
                 # Check if per-token argmax is exactly equal to continuation
                 greedy_tokens = logits.argmax(dim=-1)
-                cont_toks = torch.tensor(
-                    cont_toks, dtype=torch.long, device=self.device
+                cont_target_toks = torch.tensor(
+                    cont_target_toks, dtype=torch.long, device=self.device
                 ).unsqueeze(
                     0
                 )  # [1, seq]
-                max_equal = (greedy_tokens == cont_toks).all()
-
+                try:
+                    max_equal = (greedy_tokens[cont_target_toks!=IGNORE_TOKEN_ID] == cont_target_toks[cont_target_toks!=IGNORE_TOKEN_ID]).all()
+                except:
+                    print(cont_target_toks)
+                    print(len(cont_toks))
+                    print(cont_toks)
+                    print(cont_target_toks.shape)
+                    print(logits.shape)
+                #print(cont_target_toks)
+                #print(len(cont_toks))
+                #print(cont_toks)
+                #print(cont_target_toks.shape)
+                #print(logits.shape)
                 # Obtain log-probs at the corresponding continuation token indices
                 # last_token_slice = logits[:, -1, :].squeeze(0).tolist()
-                logits = torch.gather(logits, 2, cont_toks.unsqueeze(-1)).squeeze(
+                #logits = torch.gather(logits, 2, cont_toks.unsqueeze(-1)).squeeze(
+                #    -1
+                #)  # [1, seq]
+
+                #print(cont_target_toks)
+                #print(cont_target_toks.shape)
+                #cont_target_toks = cont_target_toks[cont]
+                #logits = logits[]
+                logits = torch.gather(logits, 2, cont_target_toks.unsqueeze(-1)).squeeze(
                     -1
                 )  # [1, seq]
 
                 # Answer: (log prob, is-exact-match)
-                answer = (float(logits.sum()), bool(max_equal))
+                answer = (float(logits[cont_target_toks!=IGNORE_TOKEN_ID].sum()), bool(max_equal))
 
                 res.append(answer)
 
