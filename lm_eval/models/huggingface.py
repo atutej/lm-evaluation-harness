@@ -29,7 +29,7 @@ eval_logger = utils.eval_logger
 
 from transformers.trainer_pt_utils import LabelSmoother
 
-IGNORE_TOKEN_ID = 1
+IGNORE_TOKEN_ID = 2
 
 def build_new_to_orig_token_map(tokenizer: transformers.PreTrainedTokenizer, orig_tokenizer: transformers.PreTrainedTokenizer):
     new_to_orig_token_map = {}
@@ -47,7 +47,7 @@ def preprocess_consume_orig_spit_new(
     new_to_orig_token_map: Dict,
     add_special_tokens
 ) -> Dict:
-    
+    sources = [x.strip() for x in sources]
     # Tokenize conversations
     new_input_ids = tokenizer(
         sources,
@@ -651,23 +651,22 @@ class HFLM(LM):
             #print("*******")
             #print("continuation:", continuation)
             #print("context:", context)
-            enc = preprocess_consume_orig_spit_new([context + continuation], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)
-            context_enc = preprocess_consume_orig_spit_new([context], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)[0][0]
-            whole_enc = enc[1][0]
+            enc = preprocess_consume_orig_spit_new([context + continuation], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=True)
+            context_enc = preprocess_consume_orig_spit_new([context], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=True)[0][0]
             #print(len(enc[0][0]))
             #print(len(enc[1][0]))
             context_enc_len = len(context_enc)
             #print(context_enc_len)
             
-            continuation_target_enc = whole_enc[context_enc_len:]
             continuation_enc = enc[0][0][context_enc_len:]
+            continuation_target_enc = enc[1][0][context_enc_len:]
             #print(continuation_target_enc)
             #print(continuation_enc)
             #print("-----")
         
         else:
-            whole_enc = self.tok_encode(context + continuation, add_special_tokens=False)
-            context_enc = self.tok_encode(context, add_special_tokens=False)
+            whole_enc = self.tok_encode(context + continuation, add_special_tokens=True)
+            context_enc = self.tok_encode(context, add_special_tokens=True)
             context_enc_len = len(context_enc)
             continuation_enc = whole_enc[context_enc_len:]
             continuation_target_enc = continuation_enc
@@ -680,11 +679,14 @@ class HFLM(LM):
             if context == "":
                 # end of text as context
                 #print(xyz)
-                context_enc = [self.eot_token_id]
-                continuation_enc, continuation_target_enc = self.tok_encode(continuation, unequal_tokenizers=self.unequal_tokenizers, get_target_only=False)
+                continuation_enc, continuation_target_enc = self.tok_encode(continuation, unequal_tokenizers=self.unequal_tokenizers, get_target_only=False, add_special_tokens=True)
+                context_enc = continuation_enc[0:1]
+                continuation_enc = continuation_enc[1:]
+                continuation_target_enc = continuation_target_enc[1:]
             else:
                 context_enc, continuation_enc, continuation_target_enc = self._encode_pair(context, continuation)
 
+            print(f'context_enc: {context_enc}, continuation_enc: {continuation_enc}, continuation_target_enc: {continuation_target_enc}')
             new_reqs.append(((context, continuation), context_enc, continuation_enc, continuation_target_enc))
 
         return self._loglikelihood_tokens(new_reqs)
