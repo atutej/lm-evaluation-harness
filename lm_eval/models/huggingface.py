@@ -565,8 +565,8 @@ class HFLM(LM):
             continuation = context[-n_spaces:] + continuation
             context = context[:-n_spaces]
 
-        whole_enc = self.tok_encode(context + continuation, add_special_tokens=False)
-        context_enc = self.tok_encode(context, add_special_tokens=False)
+        whole_enc = self.tok_encode(context + continuation, add_special_tokens=True)
+        context_enc = self.tok_encode(context, add_special_tokens=True)
 
         # whole_enc = self.tok_encode(context + continuation)
         # context_enc = self.tok_encode(context, add_special_tokens=False)
@@ -579,11 +579,12 @@ class HFLM(LM):
         for context, continuation in [req.args for req in requests]:
             if context == "":
                 # end of text as context
-                context_enc, continuation_enc = [self.tokenizer.bos_token_id], self.tok_encode(
+                continuation_enc = self.tok_encode(
                     continuation,
-                    add_special_tokens=False,
+                    add_special_tokens=True,
                 )
-                print(f'context: {context_enc}, continuation: {continuation_enc}')
+                context_enc = continuation_enc[:1]
+                continuation_enc = continuation_enc[1:]
             else:
                 context_enc, continuation_enc = self._encode_pair(context, continuation)
 
