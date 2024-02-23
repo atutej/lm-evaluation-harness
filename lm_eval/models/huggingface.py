@@ -441,7 +441,11 @@ class HFLM(LM):
                 add_special_tokens = True
 
         #print(string)
-        encoding = self.tokenizer.encode(string, add_special_tokens=add_special_tokens)
+        encoding = self.tokenizer.encode(
+            string, 
+            add_special_tokens=add_special_tokens,
+            # add_special_tokens=True # NOTE: manually adding special tokens
+            )
         #print(len(encoding))
         #print("------")
         # left-truncate the encoded context to be at most `left_truncate_len` tokens long
@@ -474,6 +478,7 @@ class HFLM(LM):
             padding="longest",
             return_tensors="pt",
             add_special_tokens=add_special_tokens,
+            # add_special_tokens=True, # NOTE: manually adding special tokens
         )
         if left_truncate_len:
             encoding["input_ids"] = encoding["input_ids"][:, -left_truncate_len:]
@@ -486,7 +491,7 @@ class HFLM(LM):
 
     def tok_decode(self, tokens):
         if self.AUTO_MODEL_CLASS == transformers.AutoModelForCausalLM:
-            return self.tokenizer.decode(tokens)
+            return self.tokenizer.decode(tokens, skip_special_tokens=True)
         elif self.AUTO_MODEL_CLASS == transformers.AutoModelForSeq2SeqLM:
             return self.tokenizer.decode(tokens, skip_special_tokens=True)
 
@@ -574,9 +579,11 @@ class HFLM(LM):
         for context, continuation in [req.args for req in requests]:
             if context == "":
                 # end of text as context
-                context_enc, continuation_enc = [self.eot_token_id], self.tok_encode(
-                    continuation
+                context_enc, continuation_enc = [self.tokenizer.bos_token_id], self.tok_encode(
+                    continuation,
+                    add_special_tokens=False,
                 )
+                print(f'context: {context_enc}, continuation: {continuation_enc}')
             else:
                 context_enc, continuation_enc = self._encode_pair(context, continuation)
 
