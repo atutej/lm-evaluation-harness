@@ -651,8 +651,8 @@ class HFLM(LM):
             #print("*******")
             #print("continuation:", continuation)
             #print("context:", context)
-            enc = preprocess_consume_orig_spit_new([context + continuation], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=True)
-            context_enc = preprocess_consume_orig_spit_new([context], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=True)[0][0]
+            enc = preprocess_consume_orig_spit_new([context + continuation], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)
+            context_enc = preprocess_consume_orig_spit_new([context], self.target_tokenizer, self.new_to_orig_token_map, add_special_tokens=False)[0][0]
             #print(len(enc[0][0]))
             #print(len(enc[1][0]))
             context_enc_len = len(context_enc)
@@ -686,7 +686,7 @@ class HFLM(LM):
             else:
                 context_enc, continuation_enc, continuation_target_enc = self._encode_pair(context, continuation)
 
-            print(f'context_enc: {context_enc}, continuation_enc: {continuation_enc}, continuation_target_enc: {continuation_target_enc}')
+            # print(f'context_enc: {context_enc}, continuation_enc: {continuation_enc}, continuation_target_enc: {continuation_target_enc}')
             new_reqs.append(((context, continuation), context_enc, continuation_enc, continuation_target_enc))
 
         return self._loglikelihood_tokens(new_reqs)
